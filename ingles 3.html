@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Juego de Emparejamiento de Palabras</title>
+    <style>
+        :root {
+            --bg-color: #f0f2f5;
+            --container-bg: #ffffff;
+            --text-color: #333333;
+            --text-color-muted: #555555;
+            --border-color: #dee2e6;
+            --primary-color: #007bff;
+            --primary-hover-color: #0056b3;
+            --success-color: #28a745;
+            --success-hover-color: #218838;
+            --warning-color: #ffc107;
+            --warning-hover-color: #e0a800;
+            --danger-color: #dc3545;
+            --danger-hover-color: #c82333;
+            --matched-bg: #a8e6cf;
+            --matched-border: #6bc9a5;
+            --incorrect-bg: #ffadad;
+            --incorrect-border: #e07b7b;
+            --word-item-bg: #e9ecef;
+            --disabled-bg: #cccccc;
+            --shadow-color: rgba(0, 0, 0, 0.1);
+            --progress-bar-bg: #e9ecef;
+            --progress-bar-fill: var(--primary-color);
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --font-family-accent: 'Arial Black', Gadget, sans-serif;
+        }
+
+        body.dark-mode {
+            --bg-color: #1a1a1a;
+            --container-bg: #2c2c2c;
+            --text-color: #f0f0f0;
+            --text-color-muted: #bbbbbb;
+            --border-color: #444444;
+            --primary-color: #0d6efd;
+            --primary-hover-color: #0b5ed7;
+            --success-color: #198754;
+            --success-hover-color: #157347;
+            --warning-color: #ffca2c;
+            --warning-hover-color: #ffbb00;
+            --danger-color: #e34958;
+            --danger-hover-color: #d43f4d;
+            --matched-bg: #2a5c4a;
+            --matched-border: #3d8168;
+            --incorrect-bg: #6b2f2f;
+            --incorrect-border: #8f3f3f;
+            --word-item-bg: #3a3a3a;
+            --disabled-bg: #555555;
+            --shadow-color: rgba(255, 255, 255, 0.05);
+            --progress-bar-bg: #3a3a3a;
+            --progress-bar-fill: var(--primary-color);
+        }
+
+        body {
+            font-family: var(--font-family);
+            display: flex;
+            flex-direction: column; /* Para la barra de progreso y el contenedor */
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding-top: 60px; /* Espacio para la barra de progreso y el botón de tema */
+            box-sizing: border-box;
+            line-height: 1.6;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        #progress-bar-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 10px;
+            background-color: var(--progress-bar-bg);
+            z-index: 1000;
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+
+        #progress-bar {
+            height: 100%;
+            width: 0%; /* Se actualiza con JS */
+            background-color: var(--progress-bar-fill);
+            transition: width 0.5s ease-out;
+            border-radius: 0 5px 5px 0;
+        }
+
+        #theme-toggle {
+            position: fixed;
+            top: 15px;
+            right: 20px;
+            background: var(--container-bg);
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.2em;
+            cursor: pointer;
+            z-index: 1001;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 2px 5px var(--shadow-color);
+            transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+        }
+        #theme-toggle:hover {
+            opacity: 0.8;
+        }
+
+
+        .container {
+            background-color: var(--container-bg);
+            padding: 25px 30px;
+            border-radius: 12px;
+            box-shadow: 0 6px 12px var(--shadow-color);
+            text-align: center;
+            width: 90%;
+            max-width: 850px;
+            margin-top: 20px;
+            margin-bottom: 20px;
+            position: relative;
+            transition: background-color 0.3s ease;
+        }
+
+        h1 {
+            color: var(--text-color);
+            margin-bottom: 25px;
+            font-size: clamp(1.6em, 4vw, 2em); /* Responsive font size */
+            font-family: var(--font-family-accent);
+        }
+
+        h2 {
+            color: var(--text-color-muted);
+            margin-bottom: 15px;
+            font-size: clamp(1.2em, 3vw, 1.5em);
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+
+        .word-columns {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+            margin-bottom: 25px;
+            flex-wrap: wrap;
+        }
+
+        .word-column {
+            flex: 1;
+            min-width: 280px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--bg-color); /* Un poco diferente al fondo general */
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+        }
+
+        .word-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            min-height: 100px; /* Para evitar colapso si está vacío */
+        }
+
+        .word-item {
+            background-color: var(--word-item-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 10px 15px;
+            margin-bottom: 10px;
+            cursor: grab;
+            transition: transform 0.2s ease-in-out, background-color 0.3s ease, border-color 0.3s ease, opacity 0.3s ease;
+            font-size: 1em;
+            word-break: break-word;
+            text-align: left;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .word-item:active, .word-item.dragging {
+            cursor: grabbing;
+            opacity: 0.6;
+            transform: scale(1.02);
+        }
+
+        .word-item.matched {
+            background-color: var(--matched-bg);
+            border-color: var(--matched-border);
+            color: var(--bg-color); /* Texto claro sobre fondo oscuro en modo oscuro */
+            cursor: default;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        body.dark-mode .word-item.matched {
+             color: #e0e0e0; /* Asegurar contraste en modo oscuro */
+        }
+
+
+        .word-item.incorrect {
+            background-color: var(--incorrect-bg);
+            border-color: var(--incorrect-border);
+            animation: shake 0.5s;
+        }
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+
+        .word-item.target-hover {
+            border: 2px dashed var(--primary-color);
+            background-color: color-mix(in srgb, var(--word-item-bg) 80%, var(--primary-color) 20%);
+        }
+        
+        .word-item.hidden {
+            opacity: 0;
+            transform: scale(0.8);
+            pointer-events: none;
+            height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+            margin-bottom: 0;
+            border-width: 0;
+            overflow: hidden;
+        }
+
+
+        .score {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: var(--text-color-muted);
+            font-weight: bold;
+        }
+
+        .pagination {
+            margin-top: 25px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .pagination button, .action-button, .restart-button {
+            font-family: var(--font-family);
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            padding: 10px 18px;
+            cursor: pointer;
+            font-size: 0.95em;
+            transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+        .pagination button:active, .action-button:active, .restart-button:active {
+            transform: translateY(1px);
+            box-shadow: 0 1px 2px var(--shadow-color);
+        }
+
+
+        .pagination button {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        .pagination button:hover:not(:disabled) {
+            background-color: var(--primary-hover-color);
+        }
+        .pagination button#page-info { /* Si 'page-info' fuera un botón */
+            background-color: transparent;
+            color: var(--text-color-muted);
+            cursor: default;
+            box-shadow: none;
+        }
+        #page-info {
+            color: var(--text-color-muted);
+            padding: 0 10px;
+        }
+
+
+        .action-button.repaso-button {
+            background-color: var(--warning-color);
+            color: #212529;
+            margin-left: 10px;
+            display: none;
+        }
+        .action-button.repaso-button:hover:not(:disabled) {
+            background-color: var(--warning-hover-color);
+        }
+
+
+        .restart-button {
+            background-color: var(--success-color);
+            color: white;
+            margin-top: 20px;
+        }
+        .restart-button:hover:not(:disabled) {
+            background-color: var(--success-hover-color);
+        }
+
+        .pagination button:disabled, .action-button:disabled, .restart-button:disabled {
+            background-color: var(--disabled-bg);
+            color: var(--text-color-muted);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+
+
+        .message-box {
+            margin-top: 20px;
+            padding: 12px 18px;
+            border-radius: 6px;
+            background-color: color-mix(in srgb, var(--warning-color) 30%, transparent);
+            border: 1px solid var(--warning-color);
+            color: color-mix(in srgb, var(--text-color) 70%, black);
+            display: none;
+            font-size: 0.95em;
+            min-height: 1.5em;
+            box-sizing: border-box;
+            transition: opacity 0.3s ease;
+        }
+        body.dark-mode .message-box {
+            background-color: color-mix(in srgb, var(--warning-color) 20%, var(--container-bg) 80%);
+            color: var(--warning-color);
+        }
+
+
+        .repaso-container {
+            display: none;
+        }
+
+        .back-to-main-button {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            padding: 8px 12px;
+            font-size: 0.85em;
+            font-family: var(--font-family);
+            background-color: var(--text-color-muted);
+            color: var(--bg-color);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px var(--shadow-color);
+        }
+        .back-to-main-button:hover {
+            background-color: color-mix(in srgb, var(--text-color-muted) 80%, black);
+        }
+
+        /* Media Query para pantallas pequeñas */
+        @media (max-width: 700px) {
+            body {
+                padding-top: 50px; /* Menos espacio para barra en móvil */
+            }
+            .container {
+                padding: 20px 15px;
+                width: 95%;
+            }
+            #theme-toggle {
+                top: 8px;
+                right: 10px;
+                width: 35px;
+                height: 35px;
+                font-size: 1em;
+            }
+
+            .word-columns {
+                flex-direction: column;
+                gap: 15px;
+            }
+            .word-column {
+                min-width: 100%;
+            }
+            .word-item, .pagination button, .action-button, .restart-button, .score, .message-box {
+                font-size: 0.9em;
+                padding: 8px 12px;
+            }
+            .pagination { gap: 5px; }
+
+            .back-to-main-button {
+                position: static;
+                margin-bottom: 15px;
+                display: block; /* Para que tome ancho completo si es necesario */
+                width: fit-content;
+                margin-left: auto;
+                margin-right: auto;
+            }
+            h1 { font-size: 1.5em; }
+            h2 { font-size: 1.2em; }
+        }
+    </style>
+</head>
+<body>
+    <div id="progress-bar-container">
+        <div id="progress-bar"></div>
+    </div>
+    <button id="theme-toggle" aria-label="Toggle theme">
+        <span id="theme-icon">☀️</span>
+    </button>
+
+    <div class="container main-game-container">
+        <h1>Juego de Emparejamiento Inglés-Español</h1>
+
+        <div class="word-columns">
+            <div class="word-column">
+                <h2>Inglés</h2>
+                <ul id="english-words" class="word-list"></ul>
+            </div>
+            <div class="word-column">
+                <h2>Español</h2>
+                <ul id="spanish-words" class="word-list"></ul>
+            </div>
+        </div>
+
+        <div id="score" class="score">Puntuación: 0</div>
+        <div id="message-box" class="message-box"></div>
+        <div class="pagination">
+            <button id="prev-page">Anterior</button>
+            <span id="page-info">Página 1 de 1</span>
+            <button id="next-page">Siguiente</button>
+        </div>
+
+        <button id="restart-game" class="restart-button">Reiniciar Juego</button>
+        <button id="review-errors" class="action-button repaso-button">Repasar Errores</button>
+    </div>
+
+    <div class="container repaso-container">
+        <button id="back-to-main" class="back-to-main-button">❮ Volver al Juego</button>
+        <h1>Repaso de Palabras con Errores</h1>
+
+        <div class="word-columns">
+            <div class="word-column">
+                <h2>Inglés (Errores)</h2>
+                <ul id="repaso-english-words" class="word-list"></ul>
+            </div>
+            <div class="word-column">
+                <h2>Español (Errores)</h2>
+                <ul id="repaso-spanish-words" class="word-list"></ul>
+            </div>
+        </div>
+
+        <div id="repaso-score" class="score">Puntuación Repaso: 0</div>
+        <div id="repaso-message-box" class="message-box"></div>
+        <button id="restart-repaso" class="restart-button">Reiniciar Repaso</button>
+    </div>
+
+    <script>
+        const wordPairs = [
+             { english: "threats", spanish: "amenazas" }, { english: "failure", spanish: "fracaso" },
+             { english: "unsuspecting", spanish: "desprevenidos" }, { english: "incur", spanish: "incurrir" },
+             { english: "assault", spanish: "ataque" }, { english: "residues", spanish: "residuos" },
+             { english: "contaminated", spanish: "contaminada" }, { english: "shortcoming", spanish: "deficiencia" },
+             { english: "steering", spanish: "dirigir" }, { english: "deplete", spanish: "agotar" },
+             { english: "degrade", spanish: "degradar" }, { english: "commute", spanish: "desplazarse" },
+             { english: "compensate", spanish: "compensar" }, { english: "arise largely from", spanish: "surgen en gran medida de" },
+             { english: "carry off", spanish: "deshacerse de" }, { english: "nearby", spanish: "cercanos" },
+             { english: "waterways", spanish: "cursos de agua" }, { english: "good share", spanish: "buena parte" },
+             { english: "abhor", spanish: "rechazar" }, { english: "shifting", spanish: "trasladar, trasladando" },
+             { english: "should be spent", spanish: "debería gastarse" }, { english: "Income", spanish: "ingresos" },
+             { english: "So far", spanish: "Hasta ahora" }, { english: "have turned", spanish: "han recurrido" },
+             { english: "goals", spanish: "objetivos" }, { english: "approach", spanish: "enfoque" },
+             { english: "has improved", spanish: "ha mejorado" }, { english: "little room", spanish: "poco margen" },
+             { english: "disposing", spanish: "eliminación" }, { english: "endangered species", spanish: "especies en peligro de extinción" },
+             { english: "appealing", spanish: "atractivos" }, { english: "help meet", spanish: "ayudar a alcanzar" },
+             { english: "adjust", spanish: "adaptarse" }, { english: "would lead", spanish: "llevaría" },
+             { english: "and still others", spanish: "y a otras" }, { english: "so as to generate", spanish: "para generar" },
+             { english: "strengths", spanish: "ventajas" }, { english: "Indeed", spanish: "De hecho" },
+             { english: "improve the functioning", spanish: "mejoran el funcionamiento" }, { english: "true cost", spanish: "costo real" },
+             { english: "already exist", spanish: "ya existen" }, { english: "A survey", spanish: "Un estudio" },
+             { english: "turned up more than", spanish: "identificó más de" }, { english: "levies", spanish: "gravámenes" },
+             { english: "as well as", spanish: "así como" }, { english: "such as fees", spanish: "como tarifas" },
+             { english: "been set too low", spanish: "se han establecido demasiado bajos" }, { english: "have been used instead to raise", spanish: "se han utilizado para recaudar" },
+             { english: "of revenue for", spanish: "de ingresos para" }, { english: "raises funds", spanish: "recauda fondos" },
+             { english: "worthy cause", spanish: "causa loable" }, { english: "but is too low to reduce", spanish: "pero es demasiado bajo para reducir" },
+             { english: "greatly", spanish: "significativamente" }, { english: "short term", spanish: "corto plazo" },
+             { english: "the amount of", spanish: "la cantidad de" }, { english: "There are, however", spanish: "No obstante, existen" },
+             { english: "leaded gasoline", spanish: "gasolina con plomo" }, { english: "the market share", spanish: "la participación del mercado" },
+             { english: "unleaded petrol", spanish: "gasolina sin plomo" }, { english: "And in late 1989", spanish: "y a finales de 1989" },
+             { english: "passed", spanish: "aprobó" }, { english: "on the sale of", spanish: "sobre la venta de" },
+             { english: "to hasten their phaseout", spanish: "para acelerar su eliminación progresiva" }, { english: "has agreed to do", spanish: "ha acordado hacer" },
+             { english: "windfall profits", spanish: "ganancias extraordinarias" }, { english: "The most widely used", spanish: "Los más utilizados" },
+             { english: "roughly twice", spanish: "aproximadamente el doble" }, { english: "current price", spanish: "precio actual" },
+             { english: "this is expected to generate", spanish: "se espera que genere" }, { english: "decline even before", spanish: "declinaran antes de" },
+             { english: "revenues", spanish: "ingresos" }, { english: "cannot be neatly totaled", spanish: "no pueden totalizarse con exactitud" },
+             { english: "But it seems likely that the", spanish: "No obstante, es probable que los" }, { english: "Assessment", spanish: "Evaluación" },
+             { english: "would require", spanish: "requeriría" }, { english: "current pesticide prices", spanish: "precio actual de los pesticidas" }
+        ];
+
+        const wordsPerPage = 7;
+        let currentPage = 0;
+        let score = 0;
+        let matches = {}; // { englishItemId: spanishItemId } for current page in main game
+        let incorrectMatchesPage = {}; // For current page, to avoid double penalizing
+        let globalIncorrectPairs = []; // Stores {english, spanish} objects of pairs EVER answered incorrectly in main game
+        let repasoSet = []; // Current set of pairs for the repaso session
+        let repasoScore = 0;
+        let repasoMatches = {}; // { englishItemId: spanishItemId } for current repaso session
+        
+        let currentGameMode = 'main'; // 'main' or 'repaso'
+        let mainGameCompleted = false;
+
+        const mainGameContainer = document.querySelector('.main-game-container');
+        const englishWordsList = document.getElementById('english-words');
+        const spanishWordsList = document.getElementById('spanish-words');
+        const scoreDisplay = document.getElementById('score');
+        const pageInfoDisplay = document.getElementById('page-info');
+        const prevPageButton = document.getElementById('prev-page');
+        const nextPageButton = document.getElementById('next-page');
+        const restartMainButton = document.getElementById('restart-game');
+        const messageBox = document.getElementById('message-box');
+        const reviewErrorsButton = document.getElementById('review-errors');
+
+        const repasoContainer = document.querySelector('.repaso-container');
+        const repasoEnglishWordsList = document.getElementById('repaso-english-words');
+        const repasoSpanishWordsList = document.getElementById('repaso-spanish-words');
+        const repasoScoreDisplay = document.getElementById('repaso-score');
+        const repasoMessageBox = document.getElementById('repaso-message-box');
+        const restartRepasoButton = document.getElementById('restart-repaso');
+        const backToMainButton = document.getElementById('back-to-main');
+
+        const themeToggleButton = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const progressBar = document.getElementById('progress-bar');
+
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+
+        function showMessage(message, duration = 3000, targetBox = messageBox) {
+            targetBox.textContent = message;
+            targetBox.style.display = 'block';
+            targetBox.style.opacity = '1';
+            setTimeout(() => {
+                if (targetBox.textContent === message) {
+                    targetBox.style.opacity = '0';
+                    setTimeout(() => { targetBox.style.display = 'none'; }, 300);
+                }
+            }, duration);
+        }
+        
+        function updateProgressBar() {
+            let progress = 0;
+            if (currentGameMode === 'main') {
+                // Progress based on total unique pairs correctly matched out of all pairs
+                progress = wordPairs.length > 0 ? (score / wordPairs.length) * 100 : 0;
+            } else if (currentGameMode === 'repaso') {
+                // Progress based on pairs correctly matched in the current repaso set
+                progress = repasoSet.length > 0 ? (repasoScore / repasoSet.length) * 100 : 0;
+                 if (repasoSet.length === 0 && repasoScore === 0) progress = 100; // If repaso starts empty, it's "complete"
+            }
+            progressBar.style.width = `${Math.min(progress, 100)}%`;
+        }
+
+
+        function applyTheme(theme) {
+            if (theme === 'dark') {
+                document.body.classList.add('dark-mode');
+                themeIcon.textContent = '🌙';
+            } else {
+                document.body.classList.remove('dark-mode');
+                themeIcon.textContent = '☀️';
+            }
+            localStorage.setItem('theme', theme);
+        }
+
+        function toggleTheme() {
+            const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
+            applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
+        }
+        
+        themeToggleButton.addEventListener('click', toggleTheme);
+
+
+        function updateScoreDisplay() {
+            scoreDisplay.textContent = `Puntuación: ${score}`;
+        }
+
+        function updateRepasoScoreDisplay() {
+            repasoScoreDisplay.textContent = `Puntuación Repaso: ${repasoScore}`;
+        }
+
+        function showMainGame() {
+            currentGameMode = 'main';
+            mainGameContainer.style.display = 'block';
+            repasoContainer.style.display = 'none';
+            updateReviewButtonState();
+            repasoMessageBox.style.display = 'none';
+            updateProgressBar();
+        }
+
+        function showRepasoGame() {
+            currentGameMode = 'repaso';
+            mainGameContainer.style.display = 'none';
+            repasoContainer.style.display = 'block';
+            loadRepasoGame([...globalIncorrectPairs]); // Use a copy of global errors
+            messageBox.style.display = 'none';
+            updateProgressBar();
+        }
+
+        function updateReviewButtonState() {
+            if (mainGameCompleted) {
+                reviewErrorsButton.style.display = 'inline-block';
+                reviewErrorsButton.disabled = globalIncorrectPairs.length === 0;
+                reviewErrorsButton.textContent = `Repasar Errores (${globalIncorrectPairs.length})`;
+            } else {
+                reviewErrorsButton.style.display = 'none';
+            }
+        }
+
+        function loadPage(page) {
+            currentPage = page;
+            const startIndex = currentPage * wordsPerPage;
+            const endIndex = startIndex + wordsPerPage;
+            const currentWords = wordPairs.slice(startIndex, endIndex);
+
+            englishWordsList.innerHTML = '';
+            spanishWordsList.innerHTML = '';
+            messageBox.style.display = 'none';
+            matches = {};
+            incorrectMatchesPage = {};
+
+            const shuffledEnglish = shuffleArray(currentWords);
+            const shuffledSpanish = shuffleArray(currentWords);
+
+            const createWordItem = (pair, language, listElement, isDraggable, index) => {
+                const li = document.createElement('li');
+                li.className = 'word-item';
+                li.textContent = pair[language];
+                li.draggable = isDraggable;
+                li.dataset.language = language;
+                li.dataset.pair = JSON.stringify(pair);
+                li.id = `${language}-page${currentPage}-idx${index}-${pair[language].replace(/[^a-zA-Z0-9]/g, '-')}`;
+                listElement.appendChild(li);
+            };
+
+            shuffledEnglish.forEach((pair, index) => createWordItem(pair, 'english', englishWordsList, true, index));
+            shuffledSpanish.forEach((pair, index) => createWordItem(pair, 'spanish', spanishWordsList, false, index));
+            
+            const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
+            pageInfoDisplay.textContent = `Página ${currentPage + 1} de ${totalPages}`;
+            prevPageButton.disabled = currentPage === 0;
+            nextPageButton.disabled = currentPage === totalPages - 1 || totalPages === 0;
+            
+            updateReviewButtonState();
+            updateProgressBar(); // Update progress when page loads
+        }
+
+        function loadRepasoGame(pairsToReview) {
+            repasoSet = [...pairsToReview]; // Store the current set for this repaso session
+            repasoEnglishWordsList.innerHTML = '';
+            repasoSpanishWordsList.innerHTML = '';
+            repasoMessageBox.style.display = 'none';
+            repasoScore = 0;
+            repasoMatches = {};
+            updateRepasoScoreDisplay();
+
+            restartRepasoButton.disabled = repasoSet.length === 0;
+
+            if (repasoSet.length === 0) {
+                showMessage("¡Excelente! No tienes errores para repasar.", 5000, repasoMessageBox);
+                updateProgressBar(); // Should be 100%
+                return;
+            }
+
+            const shuffledRepasoEnglish = shuffleArray([...repasoSet]);
+            const shuffledRepasoSpanish = shuffleArray([...repasoSet]);
+
+            const createRepasoItem = (pair, language, listElement, isDraggable, index) => {
+                const li = document.createElement('li');
+                li.className = 'word-item';
+                li.textContent = pair[language];
+                li.draggable = isDraggable;
+                li.dataset.language = language;
+                li.dataset.pair = JSON.stringify(pair);
+                li.id = `repaso-${language}-idx${index}-${pair[language].replace(/[^a-zA-Z0-9]/g, '-')}`;
+                listElement.appendChild(li);
+            };
+
+            shuffledRepasoEnglish.forEach((pair, index) => createRepasoItem(pair, 'english', repasoEnglishWordsList, true, index));
+            shuffledRepasoSpanish.forEach((pair, index) => createRepasoItem(pair, 'spanish', repasoSpanishWordsList, false, index));
+            updateProgressBar(); // Update progress for repaso
+        }
+
+        let draggedItem = null;
+
+        function handleDragStart(event) {
+            const target = event.target.closest('.word-item');
+            if (!target || target.classList.contains('matched') || target.classList.contains('hidden')) {
+                event.preventDefault();
+                return;
+            }
+            draggedItem = target;
+            event.dataTransfer.setData('text/plain', target.id);
+            event.dataTransfer.setData('pairData', target.dataset.pair);
+            event.dataTransfer.effectAllowed = 'move';
+            setTimeout(() => target.classList.add('dragging'), 0); // Timeout for visual feedback
+        }
+
+        function handleDragOver(event) {
+            event.preventDefault();
+            const targetItem = event.target.closest('.word-item');
+            if (targetItem && !targetItem.classList.contains('matched') && !targetItem.classList.contains('hidden') && targetItem !== draggedItem) {
+                targetItem.classList.add('target-hover');
+            }
+        }
+
+        function handleDragLeave(event) {
+            const targetItem = event.target.closest('.word-item');
+            if (targetItem) {
+                targetItem.classList.remove('target-hover');
+            }
+        }
+        
+        function handleDragEnd(event) {
+            if (draggedItem) {
+                draggedItem.classList.remove('dragging');
+            }
+            draggedItem = null;
+            // Clear any lingering target-hover classes
+            document.querySelectorAll('.word-item.target-hover').forEach(el => el.classList.remove('target-hover'));
+        }
+
+
+        function handleDrop(event) {
+            event.preventDefault();
+            const targetItem = event.target.closest('.word-item');
+             if (!targetItem || targetItem.classList.contains('matched') || targetItem.classList.contains('hidden') || !draggedItem) {
+                if(draggedItem) draggedItem.classList.remove('dragging');
+                if(targetItem) targetItem.classList.remove('target-hover');
+                draggedItem = null;
+                return;
+            }
+            targetItem.classList.remove('target-hover');
+            
+            const sourceItem = draggedItem; // Use the stored draggedItem
+            draggedItem = null; // Reset for next drag
+            sourceItem.classList.remove('dragging');
+
+            const sourcePairData = JSON.parse(sourceItem.dataset.pair);
+            const targetPairData = JSON.parse(targetItem.dataset.pair);
+
+            const isSourceEnglish = sourceItem.dataset.language === 'english';
+            const isTargetSpanish = targetItem.dataset.language === 'spanish';
+            const isSourceSpanish = sourceItem.dataset.language === 'spanish';
+            const isTargetEnglish = targetItem.dataset.language === 'english';
+
+            const areDifferentTypes = (isSourceEnglish && isTargetSpanish) || (isSourceSpanish && isTargetEnglish);
+            const currentMsgBox = currentGameMode === 'main' ? messageBox : repasoMessageBox;
+
+            if (!areDifferentTypes) {
+                showMessage("No puedes emparejar palabras del mismo idioma.", 2000, currentMsgBox);
+                return;
+            }
+
+            const isMatch = (sourcePairData.english === targetPairData.english && sourcePairData.spanish === targetPairData.spanish);
+
+            if (isMatch) {
+                sourceItem.classList.add('matched');
+                targetItem.classList.add('matched');
+                sourceItem.draggable = false;
+                targetItem.draggable = false;
+                sourceItem.classList.remove('incorrect');
+                targetItem.classList.remove('incorrect');
+
+                if (currentGameMode === 'main') {
+                    // Only increment score if this specific pair hasn't been matched on this page yet
+                    // to prevent scoring twice if user somehow re-drags an already page-matched item.
+                    // However, global score increments for *newly* correct pairs overall.
+                    if (!matches[sourceItem.id] && !matches[targetItem.id]) {
+                         // Check if this exact pair (English word) was previously incorrect and now is correct
+                        const pairKey = sourcePairData.english; // Use English word as a unique key for the pair
+                        if (!Object.values(matches).includes(pairKey)) { // if this pair hasn't been scored yet for this session
+                             score++; // This score tracks total unique correct pairs in the game
+                        }
+                    }
+                    matches[sourceItem.id] = targetItem.id; 
+                    matches[targetItem.id] = sourceItem.id; // Mark both as matched for page completion check
+
+                    updateScoreDisplay();
+                    checkPageCompletion();
+                } else if (currentGameMode === 'repaso') {
+                    repasoScore++;
+                    updateRepasoScoreDisplay();
+                    repasoMatches[sourceItem.id] = targetItem.id;
+                    
+                    // Hide items after a short delay for visual feedback
+                    setTimeout(() => {
+                        sourceItem.classList.add('hidden');
+                        targetItem.classList.add('hidden');
+                        checkRepasoCompletion(); // Check after hiding
+                        updateProgressBar(); // Update progress after hiding
+                    }, 500); // 0.5 second delay
+                }
+            } else { // Incorrect Match
+                sourceItem.classList.add('incorrect');
+                targetItem.classList.add('incorrect');
+
+                if (currentGameMode === 'main') {
+                    const incorrectPair = sourcePairData; // The pair the user attempted to match (from dragged item)
+                    // Add to globalIncorrectPairs only if it's not already there based on english word
+                    if (!globalIncorrectPairs.some(p => p.english === incorrectPair.english)) {
+                        globalIncorrectPairs.push(incorrectPair);
+                         if(mainGameCompleted) updateReviewButtonState(); // Update count if game already finished
+                    }
+                    incorrectMatchesPage[sourceItem.id] = true; 
+                }
+                // No penalty or specific tracking for incorrect in Repaso beyond visual
+
+                setTimeout(() => {
+                    if (!sourceItem.classList.contains('matched')) sourceItem.classList.remove('incorrect');
+                    if (!targetItem.classList.contains('matched')) targetItem.classList.remove('incorrect');
+                }, 800);
+            }
+            updateProgressBar(); // Update progress after any drop
+        }
+
+
+        function addDragDropListeners(containerElement) {
+            containerElement.addEventListener('dragstart', handleDragStart);
+            containerElement.addEventListener('dragover', handleDragOver);
+            containerElement.addEventListener('dragleave', handleDragLeave);
+            containerElement.addEventListener('drop', handleDrop);
+            containerElement.addEventListener('dragend', handleDragEnd); // Added to clean up if drag ends outside a valid target
+        }
+        
+        function checkPageCompletion() {
+            const itemsOnPage = englishWordsList.querySelectorAll('.word-item').length;
+            const matchedPairsOnPage = Object.keys(matches).length / 2; // Each match involves two items
+
+            if (itemsOnPage > 0 && matchedPairsOnPage === itemsOnPage) {
+                const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
+                if (currentPage === totalPages - 1) {
+                    mainGameCompleted = true;
+                    showMessage("¡Has completado todas las palabras! Puedes repasar tus errores si los tuviste.", 5000, messageBox);
+                    updateReviewButtonState();
+                } else {
+                    showMessage("¡Página completada! Haz clic en 'Siguiente' para continuar.", 4000, messageBox);
+                }
+            }
+        }
+        
+        function checkRepasoCompletion() {
+            const visibleItems = repasoEnglishWordsList.querySelectorAll('.word-item:not(.hidden)').length +
+                                 repasoSpanishWordsList.querySelectorAll('.word-item:not(.hidden)').length;
+            
+            if (repasoSet.length > 0 && visibleItems === 0) {
+                showMessage("¡Repaso completado! Has corregido todos los errores de esta sesión.", 6000, repasoMessageBox);
+                // Optionally, disable restart repaso button or change its text
+                // restartRepasoButton.disabled = true; 
+            } else if (repasoSet.length === 0 && visibleItems === 0) { // If started with no errors
+                 // Message already shown in loadRepasoGame
+            }
+        }
+
+
+        prevPageButton.addEventListener('click', () => {
+            if (currentGameMode === 'main' && currentPage > 0) {
+                loadPage(currentPage - 1);
+            }
+        });
+
+        nextPageButton.addEventListener('click', () => {
+            if (currentGameMode === 'main') {
+                const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
+                if (currentPage < totalPages - 1) {
+                    loadPage(currentPage + 1);
+                }
+            }
+        });
+
+        restartMainButton.addEventListener('click', () => {
+            score = 0;
+            globalIncorrectPairs = [];
+            mainGameCompleted = false;
+            updateScoreDisplay();
+            updateReviewButtonState();
+            loadPage(0);
+            showMessage("Juego principal reiniciado.", 2000, messageBox);
+        });
+
+        reviewErrorsButton.addEventListener('click', () => {
+            if (!reviewErrorsButton.disabled) {
+                showRepasoGame();
+            }
+        });
+
+        backToMainButton.addEventListener('click', showMainGame);
+
+        restartRepasoButton.addEventListener('click', () => {
+            if (!restartRepasoButton.disabled) {
+                // Reload repaso with the same set of errors it started with for this session
+                loadRepasoGame([...repasoSet]); // Use a copy of the original repasoSet for this session
+                showMessage("Repaso reiniciado.", 2000, repasoMessageBox);
+            }
+        });
+        
+        window.onload = () => {
+            const preferredTheme = localStorage.getItem('theme') || 'light';
+            applyTheme(preferredTheme);
+            
+            // Add listeners to the containers that hold the draggable items
+            addDragDropListeners(document.querySelector('.main-game-container .word-columns'));
+            addDragDropListeners(document.querySelector('.repaso-container .word-columns'));
+            
+            loadPage(0);
+            updateReviewButtonState();
+            showMainGame(); // Ensure correct initial view
+        };
+    </script>
+</body>
+</html>
