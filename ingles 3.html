@@ -394,6 +394,12 @@
             h1 { font-size: 1.5em; }
             h2 { font-size: 1.2em; }
         }
+
+        @media (max-width: 400px) {
+            .container {
+                padding: 15px 10px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -421,9 +427,7 @@
         <div id="score" class="score">Puntuación: 0</div>
         <div id="message-box" class="message-box"></div>
         <div class="pagination">
-            <button id="prev-page">Anterior</button>
             <span id="page-info">Página 1 de 1</span>
-            <button id="next-page">Siguiente</button>
         </div>
 
         <button id="restart-game" class="restart-button">Reiniciar Juego</button>
@@ -451,7 +455,7 @@
     </div>
 
     <script>
-        const wordPairs = [
+        const ALL_WORD_PAIRS = [
              { english: "threats", spanish: "amenazas" }, { english: "failure", spanish: "fracaso" },
              { english: "unsuspecting", spanish: "desprevenidos" }, { english: "incur", spanish: "incurrir" },
              { english: "assault", spanish: "ataque" }, { english: "residues", spanish: "residuos" },
@@ -492,41 +496,45 @@
              { english: "would require", spanish: "requeriría" }, { english: "current pesticide prices", spanish: "precio actual de los pesticidas" }
         ];
 
-        const wordsPerPage = 7;
-        let currentPage = 0;
-        let score = 0;
-        let matches = {}; // { englishItemId: spanishItemId } for current page in main game
-        let incorrectMatchesPage = {}; // For current page, to avoid double penalizing
-        let globalIncorrectPairs = []; // Stores {english, spanish} objects of pairs EVER answered incorrectly in main game
-        let repasoSet = []; // Current set of pairs for the repaso session
-        let repasoScore = 0;
-        let repasoMatches = {}; // { englishItemId: spanishItemId } for current repaso session
-        
-        let currentGameMode = 'main'; // 'main' or 'repaso'
-        let mainGameCompleted = false;
+        const WORDS_PER_PAGE = 7;
 
-        const mainGameContainer = document.querySelector('.main-game-container');
-        const englishWordsList = document.getElementById('english-words');
-        const spanishWordsList = document.getElementById('spanish-words');
-        const scoreDisplay = document.getElementById('score');
-        const pageInfoDisplay = document.getElementById('page-info');
-        const prevPageButton = document.getElementById('prev-page');
-        const nextPageButton = document.getElementById('next-page');
-        const restartMainButton = document.getElementById('restart-game');
-        const messageBox = document.getElementById('message-box');
-        const reviewErrorsButton = document.getElementById('review-errors');
+        const dom = {
+            mainGame: document.querySelector('.main-game-container'),
+            repasoGame: document.querySelector('.repaso-container'),
+            englishWords: document.getElementById('english-words'),
+            spanishWords: document.getElementById('spanish-words'),
+            repasoEnglishWords: document.getElementById('repaso-english-words'),
+            repasoSpanishWords: document.getElementById('repaso-spanish-words'),
+            score: document.getElementById('score'),
+            repasoScore: document.getElementById('repaso-score'),
+            pageInfo: document.getElementById('page-info'),
+            messageBox: document.getElementById('message-box'),
+            repasoMessageBox: document.getElementById('repaso-message-box'),
+            restartMainBtn: document.getElementById('restart-game'),
+            reviewErrorsBtn: document.getElementById('review-errors'),
+            restartRepasoBtn: document.getElementById('restart-repaso'),
+            backToMainBtn: document.getElementById('back-to-main'),
+            themeToggle: document.getElementById('theme-toggle'),
+            themeIcon: document.getElementById('theme-icon'),
+            progressBar: document.getElementById('progress-bar')
+        };
 
-        const repasoContainer = document.querySelector('.repaso-container');
-        const repasoEnglishWordsList = document.getElementById('repaso-english-words');
-        const repasoSpanishWordsList = document.getElementById('repaso-spanish-words');
-        const repasoScoreDisplay = document.getElementById('repaso-score');
-        const repasoMessageBox = document.getElementById('repaso-message-box');
-        const restartRepasoButton = document.getElementById('restart-repaso');
-        const backToMainButton = document.getElementById('back-to-main');
+        let gameState = {};
+        let draggedItem = null;
 
-        const themeToggleButton = document.getElementById('theme-toggle');
-        const themeIcon = document.getElementById('theme-icon');
-        const progressBar = document.getElementById('progress-bar');
+        function resetGameState() {
+            gameState = {
+                mode: 'main', // 'main' or 'repaso'
+                currentPage: 0,
+                score: 0,
+                repasoScore: 0,
+                pageMatches: {},
+                repasoMatches: {},
+                globalIncorrectPairs: [],
+                repasoSet: [],
+                mainGameCompleted: false,
+            };
+        }
 
         function shuffleArray(array) {
             const shuffled = [...array];
@@ -537,7 +545,7 @@
             return shuffled;
         }
 
-        function showMessage(message, duration = 3000, targetBox = messageBox) {
+        function showMessage(message, duration = 3000, targetBox = dom.messageBox) {
             targetBox.textContent = message;
             targetBox.style.display = 'block';
             targetBox.style.opacity = '1';
@@ -548,29 +556,21 @@
                 }
             }, duration);
         }
-        
+
         function updateProgressBar() {
             let progress = 0;
-            if (currentGameMode === 'main') {
-                // Progress based on total unique pairs correctly matched out of all pairs
-                progress = wordPairs.length > 0 ? (score / wordPairs.length) * 100 : 0;
-            } else if (currentGameMode === 'repaso') {
-                // Progress based on pairs correctly matched in the current repaso set
-                progress = repasoSet.length > 0 ? (repasoScore / repasoSet.length) * 100 : 0;
-                 if (repasoSet.length === 0 && repasoScore === 0) progress = 100; // If repaso starts empty, it's "complete"
+            if (gameState.mode === 'main') {
+                progress = ALL_WORD_PAIRS.length > 0 ? (gameState.score / ALL_WORD_PAIRS.length) * 100 : 0;
+            } else if (gameState.mode === 'repaso') {
+                progress = gameState.repasoSet.length > 0 ? (gameState.repasoScore / gameState.repasoSet.length) * 100 : 0;
+                if (gameState.repasoSet.length === 0) progress = 100;
             }
-            progressBar.style.width = `${Math.min(progress, 100)}%`;
+            dom.progressBar.style.width = `${Math.min(progress, 100)}%`;
         }
 
-
         function applyTheme(theme) {
-            if (theme === 'dark') {
-                document.body.classList.add('dark-mode');
-                themeIcon.textContent = '🌙';
-            } else {
-                document.body.classList.remove('dark-mode');
-                themeIcon.textContent = '☀️';
-            }
+            document.body.classList.toggle('dark-mode', theme === 'dark');
+            dom.themeIcon.textContent = theme === 'dark' ? '🌙' : '☀️';
             localStorage.setItem('theme', theme);
         }
 
@@ -578,121 +578,76 @@
             const currentTheme = document.body.classList.contains('dark-mode') ? 'dark' : 'light';
             applyTheme(currentTheme === 'dark' ? 'light' : 'dark');
         }
-        
-        themeToggleButton.addEventListener('click', toggleTheme);
-
 
         function updateScoreDisplay() {
-            scoreDisplay.textContent = `Puntuación: ${score}`;
+            dom.score.textContent = `Puntuación: ${gameState.score}`;
+            dom.repasoScore.textContent = `Puntuación Repaso: ${gameState.repasoScore}`;
         }
 
-        function updateRepasoScoreDisplay() {
-            repasoScoreDisplay.textContent = `Puntuación Repaso: ${repasoScore}`;
-        }
-
-        function showMainGame() {
-            currentGameMode = 'main';
-            mainGameContainer.style.display = 'block';
-            repasoContainer.style.display = 'none';
-            updateReviewButtonState();
-            repasoMessageBox.style.display = 'none';
-            updateProgressBar();
-        }
-
-        function showRepasoGame() {
-            currentGameMode = 'repaso';
-            mainGameContainer.style.display = 'none';
-            repasoContainer.style.display = 'block';
-            loadRepasoGame([...globalIncorrectPairs]); // Use a copy of global errors
-            messageBox.style.display = 'none';
+        function switchGameView(mode) {
+            gameState.mode = mode;
+            dom.mainGame.style.display = mode === 'main' ? 'block' : 'none';
+            dom.repasoGame.style.display = mode === 'repaso' ? 'block' : 'none';
+            dom.messageBox.style.display = 'none';
+            dom.repasoMessageBox.style.display = 'none';
             updateProgressBar();
         }
 
         function updateReviewButtonState() {
-            if (mainGameCompleted) {
-                reviewErrorsButton.style.display = 'inline-block';
-                reviewErrorsButton.disabled = globalIncorrectPairs.length === 0;
-                reviewErrorsButton.textContent = `Repasar Errores (${globalIncorrectPairs.length})`;
+            if (gameState.mainGameCompleted) {
+                dom.reviewErrorsBtn.style.display = 'inline-block';
+                dom.reviewErrorsBtn.disabled = gameState.globalIncorrectPairs.length === 0;
+                dom.reviewErrorsBtn.textContent = `Repasar Errores (${gameState.globalIncorrectPairs.length})`;
             } else {
-                reviewErrorsButton.style.display = 'none';
+                dom.reviewErrorsBtn.style.display = 'none';
             }
         }
 
-        function loadPage(page) {
-            currentPage = page;
-            const startIndex = currentPage * wordsPerPage;
-            const endIndex = startIndex + wordsPerPage;
-            const currentWords = wordPairs.slice(startIndex, endIndex);
-
-            englishWordsList.innerHTML = '';
-            spanishWordsList.innerHTML = '';
-            messageBox.style.display = 'none';
-            matches = {};
-            incorrectMatchesPage = {};
-
-            const shuffledEnglish = shuffleArray(currentWords);
-            const shuffledSpanish = shuffleArray(currentWords);
-
-            const createWordItem = (pair, language, listElement, isDraggable, index) => {
-                const li = document.createElement('li');
-                li.className = 'word-item';
-                li.textContent = pair[language];
-                li.draggable = isDraggable;
-                li.dataset.language = language;
-                li.dataset.pair = JSON.stringify(pair);
-                li.id = `${language}-page${currentPage}-idx${index}-${pair[language].replace(/[^a-zA-Z0-9]/g, '-')}`;
-                listElement.appendChild(li);
-            };
-
-            shuffledEnglish.forEach((pair, index) => createWordItem(pair, 'english', englishWordsList, true, index));
-            shuffledSpanish.forEach((pair, index) => createWordItem(pair, 'spanish', spanishWordsList, false, index));
-            
-            const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
-            pageInfoDisplay.textContent = `Página ${currentPage + 1} de ${totalPages}`;
-            prevPageButton.disabled = currentPage === 0;
-            nextPageButton.disabled = currentPage === totalPages - 1 || totalPages === 0;
-            
-            updateReviewButtonState();
-            updateProgressBar(); // Update progress when page loads
+        function createWordItem(pair, language, isDraggable, index, prefix) {
+            const li = document.createElement('li');
+            li.className = 'word-item';
+            li.textContent = pair[language];
+            li.draggable = isDraggable;
+            li.dataset.language = language;
+            li.dataset.pair = JSON.stringify(pair);
+            li.id = `${prefix}-${language}-idx${index}-${pair[language].replace(/[^a-zA-Z0-9]/g, '-')}`;
+            return li;
         }
 
-        function loadRepasoGame(pairsToReview) {
-            repasoSet = [...pairsToReview]; // Store the current set for this repaso session
-            repasoEnglishWordsList.innerHTML = '';
-            repasoSpanishWordsList.innerHTML = '';
-            repasoMessageBox.style.display = 'none';
-            repasoScore = 0;
-            repasoMatches = {};
-            updateRepasoScoreDisplay();
-
-            restartRepasoButton.disabled = repasoSet.length === 0;
-
-            if (repasoSet.length === 0) {
-                showMessage("¡Excelente! No tienes errores para repasar.", 5000, repasoMessageBox);
-                updateProgressBar(); // Should be 100%
-                return;
+        function renderGamePage(pageIndex, words, mode) {
+            const isMainGame = mode === 'main';
+            const wordList = isMainGame ? words.slice(pageIndex * WORDS_PER_PAGE, (pageIndex + 1) * WORDS_PER_PAGE) : words;
+            
+            const englishList = isMainGame ? dom.englishWords : dom.repasoEnglishWords;
+            const spanishList = isMainGame ? dom.spanishWords : dom.repasoSpanishWords;
+            
+            englishList.innerHTML = '';
+            spanishList.innerHTML = '';
+            
+            if (isMainGame) {
+                gameState.pageMatches = {};
+                const totalPages = Math.ceil(words.length / WORDS_PER_PAGE);
+                dom.pageInfo.textContent = `Página ${pageIndex + 1} de ${totalPages}`;
+            } else {
+                gameState.repasoMatches = {};
+                dom.restartRepasoBtn.disabled = words.length === 0;
+                if (words.length === 0) {
+                    showMessage("¡Excelente! No tienes errores para repasar.", 5000, dom.repasoMessageBox);
+                }
             }
 
-            const shuffledRepasoEnglish = shuffleArray([...repasoSet]);
-            const shuffledRepasoSpanish = shuffleArray([...repasoSet]);
+            const shuffledEnglish = shuffleArray(wordList);
+            const shuffledSpanish = shuffleArray(wordList);
 
-            const createRepasoItem = (pair, language, listElement, isDraggable, index) => {
-                const li = document.createElement('li');
-                li.className = 'word-item';
-                li.textContent = pair[language];
-                li.draggable = isDraggable;
-                li.dataset.language = language;
-                li.dataset.pair = JSON.stringify(pair);
-                li.id = `repaso-${language}-idx${index}-${pair[language].replace(/[^a-zA-Z0-9]/g, '-')}`;
-                listElement.appendChild(li);
-            };
+            shuffledEnglish.forEach((pair, index) => {
+                englishList.appendChild(createWordItem(pair, 'english', true, index, mode));
+            });
+            shuffledSpanish.forEach((pair, index) => {
+                spanishList.appendChild(createWordItem(pair, 'spanish', false, index, mode));
+            });
 
-            shuffledRepasoEnglish.forEach((pair, index) => createRepasoItem(pair, 'english', repasoEnglishWordsList, true, index));
-            shuffledRepasoSpanish.forEach((pair, index) => createRepasoItem(pair, 'spanish', repasoSpanishWordsList, false, index));
-            updateProgressBar(); // Update progress for repaso
+            updateProgressBar();
         }
-
-        let draggedItem = null;
 
         function handleDragStart(event) {
             const target = event.target.closest('.word-item');
@@ -702,9 +657,7 @@
             }
             draggedItem = target;
             event.dataTransfer.setData('text/plain', target.id);
-            event.dataTransfer.setData('pairData', target.dataset.pair);
-            event.dataTransfer.effectAllowed = 'move';
-            setTimeout(() => target.classList.add('dragging'), 0); // Timeout for visual feedback
+            setTimeout(() => target.classList.add('dragging'), 0);
         }
 
         function handleDragOver(event) {
@@ -716,207 +669,165 @@
         }
 
         function handleDragLeave(event) {
-            const targetItem = event.target.closest('.word-item');
-            if (targetItem) {
-                targetItem.classList.remove('target-hover');
-            }
+            event.target.closest('.word-item')?.classList.remove('target-hover');
         }
-        
-        function handleDragEnd(event) {
-            if (draggedItem) {
-                draggedItem.classList.remove('dragging');
-            }
+
+        function handleDragEnd() {
+            draggedItem?.classList.remove('dragging');
             draggedItem = null;
-            // Clear any lingering target-hover classes
             document.querySelectorAll('.word-item.target-hover').forEach(el => el.classList.remove('target-hover'));
         }
 
+        function handleCorrectMatch(sourceItem, targetItem) {
+            sourceItem.classList.add('matched');
+            targetItem.classList.add('matched');
+            sourceItem.draggable = false;
+            targetItem.draggable = false;
+
+            if (gameState.mode === 'main') {
+                if (!gameState.pageMatches[sourceItem.id]) {
+                    gameState.score++;
+                }
+                gameState.pageMatches[sourceItem.id] = targetItem.id;
+                gameState.pageMatches[targetItem.id] = sourceItem.id;
+                checkMainGameCompletion();
+            } else { // Repaso mode
+                gameState.repasoScore++;
+                gameState.repasoMatches[sourceItem.id] = targetItem.id;
+                setTimeout(() => {
+                    sourceItem.classList.add('hidden');
+                    targetItem.classList.add('hidden');
+                    checkRepasoCompletion();
+                }, 500);
+            }
+            updateScoreDisplay();
+        }
+
+        function handleIncorrectMatch(sourceItem, targetItem) {
+            sourceItem.classList.add('incorrect');
+            targetItem.classList.add('incorrect');
+
+            if (gameState.mode === 'main') {
+                const incorrectPair = JSON.parse(sourceItem.dataset.pair);
+                if (!gameState.globalIncorrectPairs.some(p => p.english === incorrectPair.english)) {
+                    gameState.globalIncorrectPairs.push(incorrectPair);
+                    if (gameState.mainGameCompleted) updateReviewButtonState();
+                }
+            }
+            setTimeout(() => {
+                sourceItem.classList.remove('incorrect');
+                targetItem.classList.remove('incorrect');
+            }, 800);
+        }
 
         function handleDrop(event) {
             event.preventDefault();
             const targetItem = event.target.closest('.word-item');
-             if (!targetItem || targetItem.classList.contains('matched') || targetItem.classList.contains('hidden') || !draggedItem) {
-                if(draggedItem) draggedItem.classList.remove('dragging');
-                if(targetItem) targetItem.classList.remove('target-hover');
-                draggedItem = null;
+            if (!targetItem || targetItem.classList.contains('matched') || !draggedItem) {
+                handleDragEnd();
                 return;
             }
             targetItem.classList.remove('target-hover');
-            
-            const sourceItem = draggedItem; // Use the stored draggedItem
-            draggedItem = null; // Reset for next drag
-            sourceItem.classList.remove('dragging');
+            const sourceItem = draggedItem;
+            handleDragEnd();
 
-            const sourcePairData = JSON.parse(sourceItem.dataset.pair);
-            const targetPairData = JSON.parse(targetItem.dataset.pair);
+            const sourcePair = JSON.parse(sourceItem.dataset.pair);
+            const targetPair = JSON.parse(targetItem.dataset.pair);
 
-            const isSourceEnglish = sourceItem.dataset.language === 'english';
-            const isTargetSpanish = targetItem.dataset.language === 'spanish';
-            const isSourceSpanish = sourceItem.dataset.language === 'spanish';
-            const isTargetEnglish = targetItem.dataset.language === 'english';
-
-            const areDifferentTypes = (isSourceEnglish && isTargetSpanish) || (isSourceSpanish && isTargetEnglish);
-            const currentMsgBox = currentGameMode === 'main' ? messageBox : repasoMessageBox;
-
-            if (!areDifferentTypes) {
-                showMessage("No puedes emparejar palabras del mismo idioma.", 2000, currentMsgBox);
+            if (sourceItem.dataset.language === targetItem.dataset.language) {
+                showMessage("No puedes emparejar palabras del mismo idioma.", 2000, gameState.mode === 'main' ? dom.messageBox : dom.repasoMessageBox);
                 return;
             }
 
-            const isMatch = (sourcePairData.english === targetPairData.english && sourcePairData.spanish === targetPairData.spanish);
-
-            if (isMatch) {
-                sourceItem.classList.add('matched');
-                targetItem.classList.add('matched');
-                sourceItem.draggable = false;
-                targetItem.draggable = false;
-                sourceItem.classList.remove('incorrect');
-                targetItem.classList.remove('incorrect');
-
-                if (currentGameMode === 'main') {
-                    // Only increment score if this specific pair hasn't been matched on this page yet
-                    // to prevent scoring twice if user somehow re-drags an already page-matched item.
-                    // However, global score increments for *newly* correct pairs overall.
-                    if (!matches[sourceItem.id] && !matches[targetItem.id]) {
-                         // Check if this exact pair (English word) was previously incorrect and now is correct
-                        const pairKey = sourcePairData.english; // Use English word as a unique key for the pair
-                        if (!Object.values(matches).includes(pairKey)) { // if this pair hasn't been scored yet for this session
-                             score++; // This score tracks total unique correct pairs in the game
-                        }
-                    }
-                    matches[sourceItem.id] = targetItem.id; 
-                    matches[targetItem.id] = sourceItem.id; // Mark both as matched for page completion check
-
-                    updateScoreDisplay();
-                    checkPageCompletion();
-                } else if (currentGameMode === 'repaso') {
-                    repasoScore++;
-                    updateRepasoScoreDisplay();
-                    repasoMatches[sourceItem.id] = targetItem.id;
-                    
-                    // Hide items after a short delay for visual feedback
-                    setTimeout(() => {
-                        sourceItem.classList.add('hidden');
-                        targetItem.classList.add('hidden');
-                        checkRepasoCompletion(); // Check after hiding
-                        updateProgressBar(); // Update progress after hiding
-                    }, 500); // 0.5 second delay
-                }
-            } else { // Incorrect Match
-                sourceItem.classList.add('incorrect');
-                targetItem.classList.add('incorrect');
-
-                if (currentGameMode === 'main') {
-                    const incorrectPair = sourcePairData; // The pair the user attempted to match (from dragged item)
-                    // Add to globalIncorrectPairs only if it's not already there based on english word
-                    if (!globalIncorrectPairs.some(p => p.english === incorrectPair.english)) {
-                        globalIncorrectPairs.push(incorrectPair);
-                         if(mainGameCompleted) updateReviewButtonState(); // Update count if game already finished
-                    }
-                    incorrectMatchesPage[sourceItem.id] = true; 
-                }
-                // No penalty or specific tracking for incorrect in Repaso beyond visual
-
-                setTimeout(() => {
-                    if (!sourceItem.classList.contains('matched')) sourceItem.classList.remove('incorrect');
-                    if (!targetItem.classList.contains('matched')) targetItem.classList.remove('incorrect');
-                }, 800);
+            if (sourcePair.english === targetPair.english) {
+                handleCorrectMatch(sourceItem, targetItem);
+            } else {
+                handleIncorrectMatch(sourceItem, targetItem);
             }
-            updateProgressBar(); // Update progress after any drop
+            updateProgressBar();
         }
 
-
-        function addDragDropListeners(containerElement) {
-            containerElement.addEventListener('dragstart', handleDragStart);
-            containerElement.addEventListener('dragover', handleDragOver);
-            containerElement.addEventListener('dragleave', handleDragLeave);
-            containerElement.addEventListener('drop', handleDrop);
-            containerElement.addEventListener('dragend', handleDragEnd); // Added to clean up if drag ends outside a valid target
-        }
-        
-        function checkPageCompletion() {
-            const itemsOnPage = englishWordsList.querySelectorAll('.word-item').length;
-            const matchedPairsOnPage = Object.keys(matches).length / 2; // Each match involves two items
+        function checkMainGameCompletion() {
+            const itemsOnPage = dom.englishWords.querySelectorAll('.word-item').length;
+            const matchedPairsOnPage = Object.keys(gameState.pageMatches).length / 2;
 
             if (itemsOnPage > 0 && matchedPairsOnPage === itemsOnPage) {
-                const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
-                if (currentPage === totalPages - 1) {
-                    mainGameCompleted = true;
-                    showMessage("¡Has completado todas las palabras! Puedes repasar tus errores si los tuviste.", 5000, messageBox);
+                const totalPages = Math.ceil(ALL_WORD_PAIRS.length / WORDS_PER_PAGE);
+                if (gameState.currentPage === totalPages - 1) {
+                    gameState.mainGameCompleted = true;
+                    showMessage("¡Has completado todas las palabras! Puedes repasar tus errores si los tuviste.", 5000, dom.messageBox);
                     updateReviewButtonState();
                 } else {
-                    showMessage("¡Página completada! Haz clic en 'Siguiente' para continuar.", 4000, messageBox);
+                    showMessage("¡Página completada! Cargando la siguiente...", 2000, dom.messageBox);
+                    setTimeout(() => {
+                        gameState.currentPage++;
+                        renderGamePage(gameState.currentPage, ALL_WORD_PAIRS, 'main');
+                    }, 2000);
                 }
             }
         }
-        
+
         function checkRepasoCompletion() {
-            const visibleItems = repasoEnglishWordsList.querySelectorAll('.word-item:not(.hidden)').length +
-                                 repasoSpanishWordsList.querySelectorAll('.word-item:not(.hidden)').length;
-            
-            if (repasoSet.length > 0 && visibleItems === 0) {
-                showMessage("¡Repaso completado! Has corregido todos los errores de esta sesión.", 6000, repasoMessageBox);
-                // Optionally, disable restart repaso button or change its text
-                // restartRepasoButton.disabled = true; 
-            } else if (repasoSet.length === 0 && visibleItems === 0) { // If started with no errors
-                 // Message already shown in loadRepasoGame
+            const visibleItems = dom.repasoEnglishWords.querySelectorAll('.word-item:not(.hidden)').length;
+            if (gameState.repasoSet.length > 0 && visibleItems === 0) {
+                showMessage("¡Repaso completado! Has corregido todos los errores de esta sesión.", 6000, dom.repasoMessageBox);
             }
         }
 
+        function setupEventListeners() {
+            dom.themeToggle.addEventListener('click', toggleTheme);
+            
+            const gameContainers = [dom.mainGame, dom.repasoGame];
+            gameContainers.forEach(container => {
+                container.addEventListener('dragstart', handleDragStart);
+                container.addEventListener('dragover', handleDragOver);
+                container.addEventListener('dragleave', handleDragLeave);
+                container.addEventListener('drop', handleDrop);
+                container.addEventListener('dragend', handleDragEnd);
+            });
 
-        prevPageButton.addEventListener('click', () => {
-            if (currentGameMode === 'main' && currentPage > 0) {
-                loadPage(currentPage - 1);
-            }
-        });
+            dom.restartMainBtn.addEventListener('click', () => {
+                resetGameState();
+                updateScoreDisplay();
+                updateReviewButtonState();
+                renderGamePage(0, ALL_WORD_PAIRS, 'main');
+                showMessage("Juego principal reiniciado.", 2000, dom.messageBox);
+            });
 
-        nextPageButton.addEventListener('click', () => {
-            if (currentGameMode === 'main') {
-                const totalPages = Math.ceil(wordPairs.length / wordsPerPage);
-                if (currentPage < totalPages - 1) {
-                    loadPage(currentPage + 1);
+            dom.reviewErrorsBtn.addEventListener('click', () => {
+                if (!dom.reviewErrorsBtn.disabled) {
+                    switchGameView('repaso');
+                    gameState.repasoSet = [...gameState.globalIncorrectPairs];
+                    gameState.repasoScore = 0;
+                    updateScoreDisplay();
+                    renderGamePage(0, gameState.repasoSet, 'repaso');
                 }
-            }
-        });
+            });
 
-        restartMainButton.addEventListener('click', () => {
-            score = 0;
-            globalIncorrectPairs = [];
-            mainGameCompleted = false;
-            updateScoreDisplay();
-            updateReviewButtonState();
-            loadPage(0);
-            showMessage("Juego principal reiniciado.", 2000, messageBox);
-        });
+            dom.backToMainBtn.addEventListener('click', () => switchGameView('main'));
 
-        reviewErrorsButton.addEventListener('click', () => {
-            if (!reviewErrorsButton.disabled) {
-                showRepasoGame();
-            }
-        });
+            dom.restartRepasoBtn.addEventListener('click', () => {
+                if (!dom.restartRepasoBtn.disabled) {
+                    gameState.repasoScore = 0;
+                    updateScoreDisplay();
+                    renderGamePage(0, gameState.repasoSet, 'repaso');
+                    showMessage("Repaso reiniciado.", 2000, dom.repasoMessageBox);
+                }
+            });
+        }
 
-        backToMainButton.addEventListener('click', showMainGame);
-
-        restartRepasoButton.addEventListener('click', () => {
-            if (!restartRepasoButton.disabled) {
-                // Reload repaso with the same set of errors it started with for this session
-                loadRepasoGame([...repasoSet]); // Use a copy of the original repasoSet for this session
-                showMessage("Repaso reiniciado.", 2000, repasoMessageBox);
-            }
-        });
-        
-        window.onload = () => {
+        function init() {
             const preferredTheme = localStorage.getItem('theme') || 'light';
             applyTheme(preferredTheme);
-            
-            // Add listeners to the containers that hold the draggable items
-            addDragDropListeners(document.querySelector('.main-game-container .word-columns'));
-            addDragDropListeners(document.querySelector('.repaso-container .word-columns'));
-            
-            loadPage(0);
+            resetGameState();
+            updateScoreDisplay();
             updateReviewButtonState();
-            showMainGame(); // Ensure correct initial view
-        };
+            switchGameView('main');
+            renderGamePage(0, ALL_WORD_PAIRS, 'main');
+            setupEventListeners();
+        }
+
+        window.onload = init;
     </script>
 </body>
 </html>
